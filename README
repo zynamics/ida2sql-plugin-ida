@@ -1,0 +1,52 @@
+
+Introduction:
+----------------------
+
+The module is distributed as two files:
+
+ -ida2sql.py    (the file run from IDA, it imports
+                the main part of the code in the ZIP file)
+ -ida2sql.zip   (A zipped module implementing all the
+                functionality, it's created by zipping the
+                ida_to_sql directory)
+                
+
+License:
+----------------------
+ida2sql is licensed under the GPL 2 license. See gpl.txt for more information.
+
+
+Installation:
+-------------
+
+Drop the ZIP file inside the IDA plugins directory. That's all. Just run the
+ida2sql.py script from within IDA afterwards.
+
+
+The configuration file:
+-----------------------
+
+If a file named "ida2sql.cfg" is placed in the IDA top level folder the
+database information will be loaded from it. Allowing to quickly export
+by just calling the "ida2sql.py" from within IDA.
+See the example ida2sql.cfg file included.
+
+
+Special features/Notes:
+-----------------
+
+If a file named "function_set.txt" exists in IDA's root directory (where
+IDA's binaries reside) it will be loaded and only functions listed on it
+will be exported. 
+
+The file should contain the hexadecimal start address of the functions
+that should be exported, one per line.
+
+Note 1: if there are any imported symbols referred to from those functions,
+those will also be exported.
+
+Note 2: The exporter might display some errors towards the end of the export.
+It will complain because not all the constraints of the database are fulfilled
+as there might be references to functions that are not exported. Those errors
+can be ignored.
+
