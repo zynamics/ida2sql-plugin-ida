@@ -980,14 +980,23 @@ class SQLExporter:
             # and the object is stored in the tree. Otherwise, 
             # just the value is in the tree.
             #
-            if isinstance(tree[1],
-                arch.arch.ExpressionNamedValue):
+            if isinstance(tree[1], arch.arch.ExpressionNamedValue):
                 
                 expr_name = tree[1].name
+                value = tree[1].value
                 
                 if expr_name is not None:
                     expr_subst[(op_idx, id)] = expr_name
-                
+            
+            else:
+                value = tree[1]
+                expr_name = None
+            
+            #process_expression_substitution
+            trace.append( id )
+            if not self.trace_information_store.has_key( id ) and value is not None:
+                self.trace_information_store[ id ] = value
+            
         else:
             
             # Check whether a position within the expression has been specified for this tree
@@ -1189,7 +1198,7 @@ class SQLExporter:
                             i in range(len(operand_trees))]
                 
                     for i, operand_id in enumerate(operand_ids):
-                    
+                        
                         for expr_id in operand_expr_ids[i]:
                         
                             expr = self.trace_information_store.get(expr_id, None)
@@ -1319,8 +1328,9 @@ class SQLExporter:
             info = self.address_references_information.get(addr_ref[0], None)
             operand_id, expression_id, position = None, None, 0
             all_operand_ids = set()
+
             if info:
-                # Go through the info for each operand...
+                # Go through the info for each operand
                 # contents: (operand index, operand ID, expression ID, value)
                 #
                 for itm in info:
@@ -1328,6 +1338,7 @@ class SQLExporter:
                     # the operand and expression IDs that we stored
                     #
                     all_operand_ids.add( itm[1] )
+                    
                     if isinstance(itm[3], (int, long)) and itm[3] == addr_ref[1]:
                         operand_id = itm[1]
                         expression_id = itm[2]
