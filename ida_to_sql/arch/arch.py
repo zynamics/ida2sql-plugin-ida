@@ -456,7 +456,7 @@ class Arch:
                 ida_instruction.Operands[idx],
                 idx ) for idx in range(6)] )
                 
-        # Retrieve the operans strings
+        # Retrieve the operand strings
         #
         operand_strings = [
             idc.GetOpnd(addr, idx) for idx in range(len(operands))]

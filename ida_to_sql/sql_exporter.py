@@ -761,7 +761,7 @@ class SQLExporter:
         self.operand_tuples___operands_values_count = 0
         self.operand_tuples___operands_values_tmp_file = tempfile.TemporaryFile()
 
-        self.address_references_values = list()
+        self.address_references_values = set()
         self.address_references_values_count = 0
         self.address_comments_values = list()
         
@@ -1202,7 +1202,7 @@ class SQLExporter:
                         for expr_id in operand_expr_ids[i]:
                         
                             expr = self.trace_information_store.get(expr_id, None)
-                            if expr:
+                            if expr is not None:
                                 # Store (operand index, operand ID, expression ID, expr) in a
                                 # dictionary with the associated key "address"
                                 # This information will be used to recover the corresponding operand ID
@@ -1210,8 +1210,8 @@ class SQLExporter:
                                 #
                                 info = self.address_references_information.get(address, None)
                                 if info is None:
-                                    info = list()
-                                info.append( (i, operand_id, expr_id, expr) )
+                                    info = set()
+                                info.add( (i, operand_id, expr_id, expr) )
                                 self.address_references_information[address] = info
                                 
                             # Get and insert the expression name, if any
@@ -1348,7 +1348,7 @@ class SQLExporter:
                 if operand_id is None and expression_id is None:
                     # But there's only one operand, assign the reference to that operand
                     if len(all_operand_ids) == 1:
-                        operand_id, expression_id = info[0][1:3]
+                        operand_id, expression_id = list(info)[0][1:3]
                         position = 0
                         
             if self.use_new_schema is True:
@@ -1356,7 +1356,7 @@ class SQLExporter:
             else:
                 values = (addr_ref[0], addr_ref[1], addr_ref[2], operand_id, expression_id)
             
-            self.address_references_values.append( values )
+            self.address_references_values.add( values )
         
         if not self.callgraph_only:
             self.address_comments_values.extend( list(self.last_packet.comments) )
@@ -1531,11 +1531,11 @@ class SQLExporter:
             if self.use_new_schema is True:
                 self.db.cursor.executemany( self.db.cursor,
                     ('INSERT IGNORE INTO ex_%d_address_references(address, destination, `type`, expression_node_id, position) ' %
-                    self.db.get_module_id()) + 'VALUES(%s, %s, %s, %s, %s)', self.address_references_values )
+                    self.db.get_module_id()) + 'VALUES(%s, %s, %s, %s, %s)', list(self.address_references_values) )
             else:
                 self.db.cursor.executemany( self.db.cursor,
                     ('INSERT IGNORE INTO ex_%d_address_references(address, target, kind, operand_id, expression_id) ' %
-                    self.db.get_module_id()) + 'VALUES(%s, %s, %s, %s, %s)', self.address_references_values )
+                    self.db.get_module_id()) + 'VALUES(%s, %s, %s, %s, %s)', list(self.address_references_values) )
             self.db.commit()
             del self.address_references_values
             

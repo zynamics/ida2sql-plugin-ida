@@ -281,7 +281,9 @@ def process_function(arch, func_ea):
     # Add to the chunks only the main block, containing the
     # function entry point
     #
-    chunks.add(get_flow_code_from_address(func_ea))
+    chunk = get_flow_code_from_address(func_ea)
+    if chunk:
+        chunks.add( chunk )
     
     # Make "ida_chunks" a set for faster searches  within
     ida_chunks = set(ida_chunks)
@@ -398,7 +400,7 @@ def process_function(arch, func_ea):
                     else:
                         target = None
                     
-                    if not target and arch.is_call(instruction):
+                    if target is None and arch.is_call(instruction):
                         imp_name = idc.Name(ref)
 
                         imp_module = get_import_module_name(ref)
@@ -406,7 +408,7 @@ def process_function(arch, func_ea):
                         imported_functions.add((ref, imp_name, imp_module))
                         packet.add_indirect_virtual_call(head, ref)
                     
-                    elif target and idc.isHead(target):
+                    elif target is not None and idc.isHead(target):
                         # for calls "routed" through this reference
                         if arch.is_call(instruction):
                             packet.add_indirect_call(head, target)
@@ -503,8 +505,10 @@ def load_function_set():
             line = dataf.readline()
             if not line:
                 break
-                
-            function_addresses.add(int(line, 16))
+            try:
+                function_addresses.add(int(line, 16))
+            except ValueError:
+                pass
             
         dataf.close()
             
