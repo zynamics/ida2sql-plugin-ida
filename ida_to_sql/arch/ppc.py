@@ -227,12 +227,12 @@ class Arch(arch.Arch):
         }
     
     CR_REGISTERS = ['cr%d' % i for i in range(8)]
-    REGISTERS = ['r%d' % i for i in range(32)]
+    REGISTERS = ['%%r%d' % i for i in range(32)]
     REGISTERS.extend(['UNK32', 'UNK33'])
-    REGISTERS.extend(['fp%d' % i for i in range(32)])
-    REGISTERS.extend(['sr%d' % i for i in range(16)])
-    REGISTERS[1] = 'sp'
-    REGISTERS[2] = 'rtoc'
+    REGISTERS.extend(['%%fp%d' % i for i in range(32)])
+    REGISTERS.extend(['%%sr%d' % i for i in range(16)])
+    REGISTERS[1] = '%sp'
+    REGISTERS[2] = '%rtoc'
     
     OPERATORS = arch.Arch.OPERATORS
     
@@ -425,10 +425,14 @@ class Arch(arch.Arch):
                 [self.NODE_TYPE_REGISTER, register, 0]])
         
         elif op.type == OPERAND_TYPE_IDPSPEC1:
-            print '***Dunno how to parse OPERAND_TYPE_IDPSPEC1'
-            operand.extend([[self.NODE_TYPE_SYMBOL,
-                'UNK_IDPSPEC1(val:%d, reg:%d, type:%d)' % (
-                    op.value, op.reg, op.type), 0]])
+            #print '***Dunno how to parse OPERAND_TYPE_IDPSPEC1'
+            #operand.extend([[self.NODE_TYPE_SYMBOL,
+            #    'UNK_IDPSPEC1(val:%d, reg:%d, type:%d)' % (
+            #        op.value, op.reg, op.type), 0]])
+            operand.extend([
+                [self.NODE_TYPE_REGISTER, self.REGISTERS[op.reg], 1]])
+            operand.extend([
+                [self.NODE_TYPE_REGISTER, self.REGISTERS[op.specflag1], 2]])
         
         elif op.type == OPERAND_TYPE_IDPSPEC2:
             # IDSPEC2 is operand type for all rlwinm and rlwnm
@@ -444,18 +448,48 @@ class Arch(arch.Arch):
                 mask = 0xffff
             else:
                 mask = 0xffffffff
+
+            operand_1 = []
+            operand_2 = []
+            operand_3 = []
             
-            # first of three
-            # operand.extend([[self.NODE_TYPE_VALUE, op.reg&mask, 0]])
-            
-            # second of three
-            # operand.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag1)&mask, 1]])
-            
-            # third of three
-            # operand.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag2)&mask, 2]])
-        
-            operand.extend([[self.NODE_TYPE_OPERATOR_COMMA, [self.NODE_TYPE_VALUE, op.reg&mask, 0], [self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag1)&mask, 1], [self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag2)&mask, 2]]])
-        
+            if (idaapi.cmd.auxpref & 0x0020):
+                #print "SH"		    
+                operand_1 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
+                operand_1.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.reg)&mask, 0]])
+            else:
+                operand_1 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
+                operand_1.extend([[self.NODE_TYPE_REGISTER, self.REGISTERS[op.reg], 0]])
+            #print operand_1
+
+            if (idaapi.cmd.auxpref & 0x0040):
+                #print "MB"
+                operand_2 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
+                operand_2.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag1)&mask, 0]])
+            #print operand_2
+
+            if (idaapi.cmd.auxpref & 0x0080):
+                #print "ME"
+                operand_3 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
+                operand_3.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag2)&mask, 0]])
+            #print operand_3
+
+            operand = [operand_1]
+            #operand = operand_1
+
+            if (idaapi.cmd.auxpref & 0x0040): 
+                #print "MB2"
+                operand.append(operand_2)
+            if (idaapi.cmd.auxpref & 0x0080):
+                #print "ME2"
+                operand.append(operand_3)	    
+
+            #print operand 
+            # operand = operand_1
+            #print operand
+            #print '>>>', hex(address), idx, op.type, op.reg
+            #operand.extend([[self.NODE_TYPE_OPERATOR_COMMA, [self.NODE_TYPE_VALUE, op.reg&mask, 0], [self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag1)&mask, 1], [self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag2)&mask, 2]]])
+
         elif op.type == OPERAND_TYPE_IDPSPEC3:
             # CR registers
             #

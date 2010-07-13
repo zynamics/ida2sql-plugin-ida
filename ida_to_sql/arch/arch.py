@@ -389,20 +389,27 @@ class Arch:
         Can be defined in architecture specific modules to
         process the whole list of operands before or after
         parsing, if necessary. In Intel, for instance, is
-        used to post process oeprands where the target is
+        used to post process operands where the target is
         also used as source but included only once, that
         happens for instance with the IMUL instruction.
         """
-    
-        operands = [self.single_operand_parser(address, op, idx) for op, idx in operands]
-        
-        operands_list = []
-        for idx, op in enumerate(operands):
-            if op is not None and idc.GetOpnd(address, idx)!='':
-                operands_list.append(op)
-        
-        return operands_list
 
+        op_list = []
+        
+        for op, idx in operands:
+            current_operand = self.single_operand_parser(address, op, idx)
+
+            if not current_operand:
+                continue
+
+            if isinstance(current_operand[0], (list, tuple)):
+                op_list.extend( current_operand )
+            else:
+                op_list.append( current_operand )
+                
+        operands = op_list
+        
+        return op_list
 
 
     #def process_instruction_generic(self, addr, operand_parser):

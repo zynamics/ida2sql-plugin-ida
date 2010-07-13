@@ -58,6 +58,7 @@ class Instrumentation:
             def call_hook(arg, attr=callable_attr):
                 if self.enabled and hasattr(self, attr):
                     function = getattr(self, attr)
+		    # foo
                     if function:
                         function(arg)
                     

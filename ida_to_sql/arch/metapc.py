@@ -76,7 +76,12 @@ class Arch(arch.Arch):
         [   'rax', 'rcx', 'rdx', 'rbx', 'rsp', 'rbp', 'rsi', 'rdi', 'r8',
             'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'al',
             'cl', 'dl', 'bl', 'ah', 'ch', 'dh', 'bh', 'spl', 'bpl',
-            'sil', 'dil', 'rip', 'es', 'cs', 'ss', 'ds', 'fs', 'gs'] ]
+            'sil', 'dil', 'rip', 'es', 'cs', 'ss', 'ds', 'fs', 'gs'],
+        [],
+        [],
+        [],
+        ['unk_reg_%02d' % i for i in range(56)] + [ 'mm%d' % i for i in range(8) ],
+        ['unk_reg_%02d' % i for i in range(64)] + [ 'xmm%d' % i for i in range(8) ] ]
     
     SIB_BASE_REGISTERS = ['eax', 'ecx', 'edx', 'ebx', 'esp', '', 'esi', 'edi']
     #SIB_BASE_REGISTERS = ['eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi']
