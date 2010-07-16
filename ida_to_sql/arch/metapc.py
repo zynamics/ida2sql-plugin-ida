@@ -2,8 +2,7 @@
 
 """zynamics GmbH IDA to SQL exporter.
 
-This module exports IDA's IDB database information into zynamics's SQL
-format.
+This module exports IDA's IDB database information into zynamics's SQL format.
 
 References:
 
@@ -11,8 +10,8 @@ zynamics GmbH:    http://www.zynamics.com/
 MySQL:            http://www.mysql.com
 IDA:              http://www.datarescue.com/idabase/
 
-Programmed and tested with IDA 5.0-5.5, Python 2.6/2.6 and IDAPython >1.0 on Windows & OSX
-by Ero Carrera (c) zynamics GmbH 2006 - 2009 [ero.carrera@zynamics.com]
+Programmed and tested with IDA 5.4-5.7, Python 2.5/2.6 and IDAPython >1.0 on Windows & OSX
+by Ero Carrera & the zynamics team (c) zynamics GmbH 2006 - 2010 [ero.carrera@zynamics.com]
 
 Distributed under GPL license [http://opensource.org/licenses/gpl-license.php].
 """
