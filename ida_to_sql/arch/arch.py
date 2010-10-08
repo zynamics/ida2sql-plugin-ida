@@ -472,10 +472,6 @@ class Arch:
         data = ''.join(
             [chr(idaapi.get_byte(addr+i)) for i in range(idc.ItemSize(addr))])
         
-
-        
-        #print hex(addr), hex(ida_instruction.ip), i_mnemonic, operands, operand_strings
-        
         # Return the mnemonic and the operand AST
         #
         return instruction, i_mnemonic, operands, operand_strings, data

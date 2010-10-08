@@ -52,15 +52,8 @@ class FunctionalUnit:
         self.branch_targets = set()
         
         # Data references made.
-        # (src, dst).
-        self.data_references = set()
-        
-        # Code references made.
-        # This are the references to addresses
-        # containing a target for a call/jmp.
-        # (indirect references)
-        # (src, dst).
-        self.code_references = set()
+        # {src: [dst,]}
+        self.data_references = dict()
         
         # Basic blocks composing the function.
         # It's a list of (start, end) address pairs.
@@ -171,6 +164,18 @@ class FunctionalUnit:
         
         return [i for i in self.instructions if i>=start and i<=end]
         
+    
+    def add_data_reference(self, ref):
+        """Add data reference
+        
+        'ref' is of the form (source, target)
+        """
+        
+        if ref[0] in self.data_references:
+            self.data_references[ ref[0] ].append( ref[1] )
+        else:
+            self.data_references[ ref[0] ] = [ ref[1] ]
+    
     
     def add_branch(self, branch):
         """Add branch information.
@@ -324,12 +329,26 @@ class FunctionalUnit:
         
         
         for src, trgt_set in branch_dict.items():
-            # if 'src' only has two outgoing edges
+            
+            # Take a look whether a data references is also
+            # made from this address, that might help identify
+            # switches
+            #
+            # NOTE: according to intel all conditional jumps
+            # have relative addresses as operands. Only
+            # unconditional jumps can make memory dereferences
+            #
+            src_has_data_ref = False
+            if src in self.data_references:
+                src_has_data_ref = True
+            
+            # if 'src' only has one outgoing edge it's unconditional
             if len(trgt_set) == 1:
                 self.branch_kinds[
                     (src, list(trgt_set)[0])] = common.BRANCH_TYPE_UNCONDITIONAL
+                continue
             
-            elif len(trgt_set) == 2:
+            if len(trgt_set) == 2 and src_has_data_ref is False:
             
                 # if one of the edges follows immediatelly
                 # then it'll be a conditional jump
@@ -348,12 +367,21 @@ class FunctionalUnit:
                             (src, trgt_set[0])] = common.BRANCH_TYPE_TRUE
                         self.branch_kinds[
                             (src, trgt_set[1])] = common.BRANCH_TYPE_FALSE
-                            
-            else:
-                for trgt in trgt_set:
-                    self.branch_kinds[
-                        (src, trgt)] = common.BRANCH_TYPE_SWITCH
+                    continue
+
+            # If it was not an unconditional jump and all the tests for a
+            # conditional one failed, it's got to be a switch...
+            #
+            # We could do a test like "if src_has_data_ref is True:"
+            # but would fail when the address is not avaiable, like in
+            # the case of a switch like [eax+ebx*4], hence we don't
+            # explicitly check for it and assume it's going to be a switch
+            #
+            for trgt in trgt_set:
+                self.branch_kinds[
+                    (src, trgt)] = common.BRANCH_TYPE_SWITCH
             
+                
     
     def analyze(self):
         """Main analysis function.

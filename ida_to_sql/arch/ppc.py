@@ -351,7 +351,7 @@ class Arch(arch.Arch):
             phrase = [
                 self.NODE_TYPE_OPERATOR_PLUS,
                     [self.NODE_TYPE_REGISTER,
-                        self.REGISTERS[op.reg], 0]]
+                        self.REGISTERS[self.as_byte_value(op.reg)], 0]]
             
             if var_name:
                 value = arch.ExpressionNamedValue(long(op.addr), var_name)
@@ -364,7 +364,7 @@ class Arch(arch.Arch):
         
         elif op.type == OPERAND_TYPE_REGISTER:
             operand.extend([
-                [self.NODE_TYPE_REGISTER, self.REGISTERS[op.reg], 1]])
+                [self.NODE_TYPE_REGISTER, self.REGISTERS[self.as_byte_value(op.reg)], 1]])
                 
         
         elif op.type == OPERAND_TYPE_MEMORY:
@@ -411,7 +411,7 @@ class Arch(arch.Arch):
             print '***Dunno how to parse PHRASE'
             operand.extend([[self.NODE_TYPE_SYMBOL,
                 'UNK_PHRASE(val:%d, reg:%d, type:%d)' % (
-                    op.value, op.reg, op.type), 0]])
+                    op.value, self.as_byte_value(op.reg), op.type), 0]])
         
         elif op.type == OPERAND_TYPE_IDPSPEC0:
             
@@ -429,9 +429,9 @@ class Arch(arch.Arch):
             #    'UNK_IDPSPEC1(val:%d, reg:%d, type:%d)' % (
             #        op.value, op.reg, op.type), 0]])
             operand.extend([
-                [self.NODE_TYPE_REGISTER, self.REGISTERS[op.reg], 1]])
+                [self.NODE_TYPE_REGISTER, self.REGISTERS[self.as_byte_value(op.reg)], 1]])
             operand.extend([
-                [self.NODE_TYPE_REGISTER, self.REGISTERS[op.specflag1], 2]])
+                [self.NODE_TYPE_REGISTER, self.REGISTERS[self.as_byte_value(op.specflag1)], 2]])
         
         elif op.type == OPERAND_TYPE_IDPSPEC2:
             # IDSPEC2 is operand type for all rlwinm and rlwnm
@@ -451,23 +451,35 @@ class Arch(arch.Arch):
             operand_1 = []
             operand_2 = []
             operand_3 = []
+
+            # Get the object representing the instruction's data.
+            # It varies between IDA pre-5.7 and 5.7 onwards, the following check
+            # will take care of it (for more detail look into the similar 
+            # construct in arch.py)
+            #
+            if hasattr(idaapi, 'cmd' ):
+                idaapi.decode_insn(address)
+                ida_instruction = idaapi.cmd
+            else:
+                idaapi.ua_code(address)
+                ida_instruction = idaapi.cvar.cmd
             
-            if (idaapi.cmd.auxpref & 0x0020):
+            if (ida_instruction.auxpref & 0x0020):
                 #print "SH"		    
                 operand_1 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
                 operand_1.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.reg)&mask, 0]])
             else:
                 operand_1 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
-                operand_1.extend([[self.NODE_TYPE_REGISTER, self.REGISTERS[op.reg], 0]])
+                operand_1.extend([[self.NODE_TYPE_REGISTER, self.REGISTERS[self.as_byte_value(op.reg)], 0]])
             #print operand_1
 
-            if (idaapi.cmd.auxpref & 0x0040):
+            if (ida_instruction.auxpref & 0x0040):
                 #print "MB"
                 operand_2 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
                 operand_2.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag1)&mask, 0]])
             #print operand_2
 
-            if (idaapi.cmd.auxpref & 0x0080):
+            if (ida_instruction.auxpref & 0x0080):
                 #print "ME"
                 operand_3 = [self.OPERAND_WIDTH[self.as_byte_value(op.dtyp)]]
                 operand_3.extend([[self.NODE_TYPE_VALUE, self.as_byte_value(op.specflag2)&mask, 0]])
@@ -476,10 +488,10 @@ class Arch(arch.Arch):
             operand = [operand_1]
             #operand = operand_1
 
-            if (idaapi.cmd.auxpref & 0x0040): 
+            if (ida_instruction.auxpref & 0x0040): 
                 #print "MB2"
                 operand.append(operand_2)
-            if (idaapi.cmd.auxpref & 0x0080):
+            if (ida_instruction.auxpref & 0x0080):
                 #print "ME2"
                 operand.append(operand_3)	    
 
@@ -493,12 +505,12 @@ class Arch(arch.Arch):
             # CR registers
             #
             operand.extend([
-                [self.NODE_TYPE_REGISTER, self.CR_REGISTERS[op.reg], 0]])
+                [self.NODE_TYPE_REGISTER, self.CR_REGISTERS[self.as_byte_value(op.reg)], 0]])
         
         elif op.type == OPERAND_TYPE_IDPSPEC4:
             # The bit in the CR to check for
             #
-            operand.extend([[self.NODE_TYPE_REGISTER, op.reg, 0]])
+            operand.extend([[self.NODE_TYPE_REGISTER, self.as_byte_value(op.reg), 0]])
             
         
         elif op.type == OPERAND_TYPE_IDPSPEC5:

@@ -79,6 +79,8 @@ class FunctionAnalyzer(functional_unit.FunctionalUnit):
         #
         [self.add_branch(branch) for branch in packet.branches if
             packet.disassembly.has_key(branch[1])]
+
+        [self.add_data_reference(ref[:2]) for ref in packet.address_references ]
         
         self.reconstruct_flow(start_ava, packet)
         if not self.function_chunks:

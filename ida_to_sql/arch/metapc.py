@@ -83,9 +83,7 @@ class Arch(arch.Arch):
         ['unk_reg_%02d' % i for i in range(64)] + [ 'xmm%d' % i for i in range(8) ] ]
     
     SIB_BASE_REGISTERS = ['eax', 'ecx', 'edx', 'ebx', 'esp', '', 'esi', 'edi']
-    #SIB_BASE_REGISTERS = ['eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi']
     SIB_INDEX_REGISTERS = ['eax', 'ecx', 'edx', 'ebx', '', 'ebp', 'esi', 'edi']
-    #SIB_REGISTERS = ['eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi']
     
     # Add the segment registers as operators
     #
@@ -143,6 +141,8 @@ class Arch(arch.Arch):
         self.INSTRUCTIONS_BRANCH = self.__get_instruction_index(
             ('NN_call', 'NN_callfi', 'NN_callni', 'NN_ja', 'NN_jae', 'NN_jb', 'NN_jbe', 'NN_jc', 'NN_jcxz', 'NN_jecxz', 'NN_jrcxz', 'NN_je', 'NN_jg', 'NN_jge', 'NN_jl', 'NN_jle', 'NN_jna', 'NN_jnae', 'NN_jnb', 'NN_jnbe', 'NN_jnc', 'NN_jne', 'NN_jng', 'NN_jnge', 'NN_jnl', 'NN_jnle', 'NN_jno', 'NN_jnp', 'NN_jns', 'NN_jnz', 'NN_jo', 'NN_jp', 'NN_jpe', 'NN_jpo', 'NN_js', 'NN_jz', 'NN_jmp', 'NN_jmpfi', 'NN_jmpni', 'NN_jmpshort'))
             
+        self.no_op_instr = [ "lods", "stos", "scas", "cmps", "movs" ]
+        
         self.arch_name = 'x86'
     
     def check_arch(self):
@@ -156,39 +156,50 @@ class Arch(arch.Arch):
         """Return the mnemonic for the current instruction.
         
         """
-        no_op_instr = [ "lods", "stos", "scas", "cmps", "movs" ]
-        if idaapi.ua_mnem(addr) in no_op_instr:
+        
+        if idaapi.ua_mnem(addr) in self.no_op_instr:
             return idc.GetDisasm(addr)
         else:
             return idaapi.ua_mnem(addr)
     
-#    def operands_parser(self, address, operands):
-#        """Parse a operands. Method overridden from main class"""
-#        
-#        operands = [self.single_operand_parser(address, op, idx) for op, idx in operands]
-#        
-#        # If all the operands are hidden in IDA, they will still
-#        # be exported as they may contain necessary information like
-#        # the "width" on which the intruction operates.
-#        # This usually happens on Intel on instructions like LODS
-#        # that assume a target register EAX,AX or AL. IDA expresses
-#        # this with a size postfix in the instruction LODSD, LODSW
-#        # or LODSB respectively... but the mnemonic it provides through
-#        # its APIS is always LODS, so we need operands to know the size
-#        #
-#
-#        show_hidden_operands = False
-#        if len([op for idx, op in enumerate(operands) if op is not None and idc.GetOpnd(address, idx)!=''])==0:
-#            show_hidden_operands = True
-#        
-#        operands_list = []
-#        for idx, op in enumerate(operands):
-#            if op is not None:
-#                if idc.GetOpnd(address, idx)!='' or show_hidden_operands:
-#                    operands_list.append(op)
-#        
-#
-#        return operands_list
+
+    def operands_parser(self, address, operands):
+        """Parse operands.
+        
+        Can be defined in architecture specific modules to
+        process the whole list of operands before or after
+        parsing, if necessary. In Intel, for instance, is
+        used to post process operands where the target is
+        also used as source but included only once, that
+        happens for instance with the IMUL instruction.
+        """
+        
+        op_list = []
+        
+        if idaapi.ua_mnem(address) in self.no_op_instr:
+            return op_list
+        
+        for op, idx in operands:
+            # The following will make sure it's an operand that IDA displays.
+            # IDA sometimes encodes implicit operand's information into the
+            # structures representing instructions but chooses not to display
+            # those operands. We try to reproduce IDAs output
+            #
+            if idc.GetOpnd(address, idx) != '':
+                current_operand = self.single_operand_parser(address, op, idx)
+            
+                if not current_operand:
+                    continue
+            
+                if isinstance(current_operand[0], (list, tuple)):
+                    op_list.extend( current_operand )
+                else:
+                    op_list.append( current_operand )
+            
+        operands = op_list
+        
+        return op_list
+
     
     def single_operand_parser(self, address, op, idx):
         """Parse a metapc operand."""
@@ -224,13 +235,10 @@ class Arch(arch.Arch):
             # http://www.hex-rays.com/forum/viewtopic.php?f=8&t=1424&p=8479&hilit=mod+rm#p8479
             # checking for it can be done in the following manner:
             #
-            if op.type == OPERAND_TYPE_DISPLACEMENT:
-                sib_base = 'ebp'
-            #    sib_base = None
-            else: # op.type == OPERAND_TYPE_MEMORY and others..
-                sib_base = self.SIB_BASE_REGISTERS[self.as_byte_value(op.specflag2)&0x7]
             
-            return sib_base
+            SIB_byte = self.as_byte_value(op.specflag2)
+            
+            return  self.SIB_BASE_REGISTERS[ SIB_byte & 0x7]
         
         def get_segment_prefix(op):
         
@@ -249,7 +257,7 @@ class Arch(arch.Arch):
             return seg_prefix
             
         
-        def parse_phrase(op):
+        def parse_phrase(op, has_displacement=False):
             """Parse the expression used for indexed memory access.
             
             Returns its AST as a nested list of lists.
@@ -262,23 +270,10 @@ class Arch(arch.Arch):
                     'Not yet handling addressing modes other than 32bit!')
             
             
-            # HACK! IDA does not seem to expose the ModR/M
-            # byte, so we get the operands string and see
-            # if ebp is referenced (used as base). If so
-            # we add it to the operand tree.
-            #
-            op_string = idc.GetOpnd(address, idx)
-            
-            base_reg = ''
-            
-            # If the operand string can be retrieved (should always be so)
-            #
-            if op_string:
-            
-                base_reg = get_sib_base_reg(op)
-                
-            
+            base_reg = get_sib_base_reg(op)
+            scaled_index_reg = get_sib_scaled_index_reg(op)
             scale = get_sib_scale(op)
+            
             if scale:
                 
                 # return nested list for reg+reg*scale
@@ -287,38 +282,62 @@ class Arch(arch.Arch):
                     # preferred display position of each element.
                     # base_reg + (scale_reg * scale)
                     #
-                    scaled_index_reg = get_sib_scaled_index_reg(op)
                     
                     if scaled_index_reg == '':
-                        return [self.NODE_TYPE_OPERATOR_PLUS, [self.NODE_TYPE_REGISTER, 'eax', 0] ]
+                        return [
+                            self.NODE_TYPE_OPERATOR_PLUS, 
+                                [self.NODE_TYPE_REGISTER, base_reg, 0] ]
                         
                     return [
                         self.NODE_TYPE_OPERATOR_PLUS, 
                             [self.NODE_TYPE_REGISTER, base_reg, 0],
                             [self.NODE_TYPE_OPERATOR_TIMES,
-                                [self.NODE_TYPE_REGISTER,
-                                    scaled_index_reg, 0],
-                                [self.NODE_TYPE_VALUE, scale, 1] ] ]
+                                [self.NODE_TYPE_REGISTER, scaled_index_reg, 0],
+                                [self.NODE_TYPE_VALUE, scale, 1], 1 ] ]
                 else:
+                    # If there's no base register and
+                    # mod == 01 or mod == 10 (=> operand has displacement)
+                    # then we need to add EBP
+                    if has_displacement:
+                        return [
+                            self.NODE_TYPE_OPERATOR_PLUS,
+                                [ self.NODE_TYPE_REGISTER, 'ebp', 0],
+                                [ self.NODE_TYPE_OPERATOR_TIMES,
+                                    [self.NODE_TYPE_REGISTER, scaled_index_reg, 0],
+                                    [self.NODE_TYPE_VALUE, scale, 1], 1 ] ]
                     return [
                         self.NODE_TYPE_OPERATOR_PLUS,
                             [ self.NODE_TYPE_OPERATOR_TIMES,
-                                [self.NODE_TYPE_REGISTER,
-                                    get_sib_scaled_index_reg(op), 0],
-                                [self.NODE_TYPE_VALUE, scale, 1] ] ]
+                                [self.NODE_TYPE_REGISTER, scaled_index_reg, 0],
+                                [self.NODE_TYPE_VALUE, scale, 1], 0 ] ]
             
             else:
                 # return nested list for reg+reg
-                if get_sib_scaled_index_reg(op)!='':
-                    return [
-                        self.NODE_TYPE_OPERATOR_PLUS,
-                            [self.NODE_TYPE_REGISTER, get_sib_base_reg(op), 0],
-                            [self.NODE_TYPE_REGISTER,
-                                get_sib_scaled_index_reg(op), 1 ] ]
+                if base_reg == '':
+                    if scaled_index_reg != '':
+                        if has_displacement:
+                            return [
+                                self.NODE_TYPE_OPERATOR_PLUS,
+                                    [ self.NODE_TYPE_REGISTER, 'ebp', 0],
+                                    [ self.NODE_TYPE_REGISTER, scaled_index_reg, 1 ] ]
+                        return [
+                            self.NODE_TYPE_OPERATOR_PLUS,
+                                [self.NODE_TYPE_REGISTER, scaled_index_reg, 0 ] ]
+                    else:
+                        if has_displacement:
+                            return [self.NODE_TYPE_OPERATOR_PLUS, [self.NODE_TYPE_REGISTER, 'ebp', 0] ]
+                        return [ ]
+                        
                 else:
-                    return [
-                        self.NODE_TYPE_OPERATOR_PLUS,
-                            [self.NODE_TYPE_REGISTER, get_sib_base_reg(op), 0] ]
+                    if scaled_index_reg != '':
+                        return [
+                            self.NODE_TYPE_OPERATOR_PLUS,
+                                [self.NODE_TYPE_REGISTER, base_reg, 0],
+                                [self.NODE_TYPE_REGISTER, scaled_index_reg, 1 ] ]
+                    else:
+                        return [
+                            self.NODE_TYPE_OPERATOR_PLUS,
+                                [self.NODE_TYPE_REGISTER, base_reg, 0] ]
         
         
         # Operand parsing
@@ -362,7 +381,7 @@ class Arch(arch.Arch):
             
             if has_sib_byte(op) is True:
                 # when SIB byte set, process the SIB indexing
-                phrase = parse_phrase(op)
+                phrase = parse_phrase(op, has_displacement=True)
             else:
                 phrase = [
                     self.NODE_TYPE_OPERATOR_PLUS, 
@@ -374,11 +393,14 @@ class Arch(arch.Arch):
             else:
                 value = op.addr
                 
+            # Calculate the index of the value depending on how many components
+            # we have in the phrase
+            #
+            idx_of_value = len( phrase ) - 1
             operand.extend([
                 [ get_segment_prefix(op),
-                    #[self.NODE_TYPE_OPERATOR_DEREFERENCE,
                     [self.NODE_TYPE_DEREFERENCE,
-                        phrase+[ [self.NODE_TYPE_VALUE, value, 1] ] ] ] ])
+                        phrase+[ [self.NODE_TYPE_VALUE, value, idx_of_value] ] ] ] ])
             
         
         elif op.type == OPERAND_TYPE_REGISTER:
@@ -399,10 +421,11 @@ class Arch(arch.Arch):
                 # when SIB byte set, process the SIB indexing
                 phrase = parse_phrase(op)
                 
+                idx_of_value = len( phrase ) - 1
                 operand.extend([
                     [ get_segment_prefix(op),
                         [self.NODE_TYPE_DEREFERENCE,
-                            phrase+[[self.NODE_TYPE_VALUE, value, 1]] ] ] ])
+                            phrase+[[self.NODE_TYPE_VALUE, value, idx_of_value]] ] ] ])
             else:                
                 operand.extend([
                     [ get_segment_prefix(op),
